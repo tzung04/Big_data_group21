@@ -1,0 +1,55 @@
+name: textsearch-a3-batch
+
+services:
+
+  spark-master:
+    image: bitnami/spark:3.5.3
+    ports:
+      - "8081:8080"   # Spark Web UI
+      - "7077:7077"   # Spark master port
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+    volumes:
+      - ../spark/batch:/opt/spark-apps    # mount code vào container
+
+  spark-worker:
+    image: bitnami/spark:3.5.3
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=2
+    depends_on:
+      - spark-master
+    volumes:
+      - ../spark/batch:/opt/spark-apps
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  # Tạo bucket tự động khi khởi động
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb local/text-search-bucket --ignore-existing;
+      echo 'Bucket created';
+      "
+
+volumes:
+  minio_data:

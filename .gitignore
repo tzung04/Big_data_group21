@@ -1,1 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Môi trường
 .env
+secrets.yaml
+*.secret
+
+# Spark
+spark-warehouse/
+derby.log
+metastore_db/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Data tạm
+data/raw/
+data/processed/
+*.parquet
+*.csv.tmp
+
+# Kubeconfig cá nhân
+kubeconfig*.yaml
