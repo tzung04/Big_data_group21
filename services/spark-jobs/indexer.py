@@ -1,10 +1,7 @@
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
+from spark_session import get_spark_session
 
 # Khởi tạo Spark
-spark = SparkSession.builder \
-    .appName("VnTextSearch-Indexer") \
-    .getOrCreate()
+spark = get_spark_session("VnTextSearch-Indexer")
 
 print("Spark Started")
 
