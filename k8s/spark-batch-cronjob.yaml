@@ -1,0 +1,108 @@
+---
+# Chạy mỗi ngày lúc 2:00 AM — pivot số bài theo ngày x category
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: spark-batch-pivot
+  namespace: text-search
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: spark-batch-pivot
+              image: vn-text-search/spark-jobs:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: SPARK_JOB
+                  value: "batch_pivot.py"
+                - name: MINIO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: MINIO_SECRET_KEY
+              envFrom:
+                - configMapRef:
+                    name: app-config
+              resources:
+                requests:
+                  memory: "1Gi"
+                  cpu: "500m"
+                limits:
+                  memory: "2Gi"
+                  cpu: "1500m"
+---
+# Chạy mỗi ngày lúc 3:00 AM — broadcast join + partition pruning
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: spark-batch-optimized
+  namespace: text-search
+spec:
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: spark-batch-optimized
+              image: vn-text-search/spark-jobs:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: SPARK_JOB
+                  value: "batch_optimized.py"
+                - name: MINIO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: MINIO_SECRET_KEY
+              envFrom:
+                - configMapRef:
+                    name: app-config
+              resources:
+                requests:
+                  memory: "1Gi"
+                  cpu: "500m"
+                limits:
+                  memory: "2Gi"
+                  cpu: "1500m"
+---
+# Chạy mỗi ngày lúc 4:00 AM — NaiveBayes ML classifier
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: spark-ml-classifier
+  namespace: text-search
+spec:
+  schedule: "0 4 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: spark-ml-classifier
+              image: vn-text-search/spark-jobs:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: SPARK_JOB
+                  value: "ml_classifier.py"
+                - name: MINIO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: MINIO_SECRET_KEY
+              envFrom:
+                - configMapRef:
+                    name: app-config
+              resources:
+                requests:
+                  memory: "1.5Gi"
+                  cpu: "500m"
+                limits:
+                  memory: "2Gi"
+                  cpu: "1500m"

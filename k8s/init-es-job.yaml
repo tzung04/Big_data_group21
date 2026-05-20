@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-es
+  namespace: text-search
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init-es
+          image: vn-text-search/crawler:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              until python -c "from elasticsearch import Elasticsearch; es = Elasticsearch(\"http://$ES_HOST:$ES_PORT\"); assert es.ping()" 2>/dev/null; do
+                echo "Waiting for Elasticsearch..."; sleep 5
+              done
+              python init_es.py
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_SECRET_KEY
