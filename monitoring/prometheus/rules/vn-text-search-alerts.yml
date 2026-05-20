@@ -1,0 +1,29 @@
+groups:
+  - name: vn-text-search
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "Prometheus has not scraped {{ $labels.job }} for more than 2 minutes."
+
+      - alert: HighMemoryUsage
+        expr: 100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage is above 90%"
+          description: "The demo cluster is close to the RAM limit. Reduce Spark or Elasticsearch memory."
+
+      - alert: ElasticsearchIndexingStopped
+        expr: sum(rate(elasticsearch_indices_indexing_index_total[5m])) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elasticsearch indexing appears stopped"
+          description: "No documents were indexed in the last 10 minutes."
