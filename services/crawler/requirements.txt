@@ -1,0 +1,4 @@
+kafka-python==2.0.2
+requests==2.31.0
+beautifulsoup4==4.12.3
+datasets==2.20.0

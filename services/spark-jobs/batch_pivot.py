@@ -1,30 +1,17 @@
-from pyspark.sql import SparkSession
+import os
+
 from pyspark.sql import functions as F
 
-ES_NODES = "localhost"
-ES_PORT = "9200"
+from spark_session import get_spark_session
+
+ES_NODES = os.getenv("ES_HOST", "localhost")
+ES_PORT = os.getenv("ES_PORT", "9200")
 ES_INDEX = "vn-documents"
 OUTPUT_PATH = "s3a://spark-output/daily-pivot/"
 
-spark = (
-    SparkSession.builder.appName("VnTextSearch-BatchPivot")
-    .config(
-        "spark.jars.packages",
-        "org.elasticsearch:elasticsearch-spark-30_2.12:8.13.0,"
-        "org.apache.hadoop:hadoop-aws:3.3.4",
-    )
-    .config("spark.hadoop.fs.s3a.endpoint", "http://localhost:9000")
-    .config("spark.hadoop.fs.s3a.access.key", "minioadmin")
-    .config("spark.hadoop.fs.s3a.secret.key", "minioadmin")
-    .config("spark.hadoop.fs.s3a.path.style.access", "true")
-    .getOrCreate()
-)
+spark = get_spark_session("VnTextSearch-BatchPivot")
 
-spark.sparkContext.setLogLevel("WARN")
-
-# Đọc dữ liệu đã được index từ Elasticsearch index vn-documents
-# Sau đó pivot số bài theo ngày x category
-
+# Đọc toàn bộ index từ Elasticsearch, sau đó pivot số bài theo ngày × category
 df_batch = (
     spark.read.format("org.elasticsearch.spark.sql")
     .option("es.nodes", ES_NODES)
@@ -33,19 +20,19 @@ df_batch = (
     .load()
 )
 
-pivot_categories = ["thoi-su", "kinh-doanh", "the-thao", "giai-tri"]
+pivot_categories = ["thoi-su", "kinh-doanh", "the-thao", "giai-tri", "giao-duc"]
 
 df_pivot = (
-    df_batch.withColumn("date", F.to_date(F.col("published_at")))
+    df_batch
+    .withColumn("date", F.to_date(F.col("published_at")))
     .groupBy("date")
     .pivot("category", pivot_categories)
     .agg(F.count("id"))
     .orderBy("date")
 )
 
-# Điền 0 cho các category không có dữ liệu trong một ngày
+# fillna(0) để tránh null trong các category không có bài trong ngày đó
 pivot_filled = df_pivot.fillna(0)
 
 pivot_filled.show(20, truncate=False)
-
 pivot_filled.write.mode("overwrite").parquet(OUTPUT_PATH)

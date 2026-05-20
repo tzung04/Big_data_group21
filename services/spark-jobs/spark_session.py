@@ -4,7 +4,6 @@ import os
 
 from pyspark.sql import SparkSession
 
-
 SPARK_PACKAGES = ",".join(
     [
         "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1",
@@ -13,15 +12,18 @@ SPARK_PACKAGES = ",".join(
     ]
 )
 
+_MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
+_MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
+_MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+
 
 def get_spark_session(app_name: str) -> SparkSession:
-    """Create a shared SparkSession configuration for all Spark jobs."""
     builder = (
         SparkSession.builder.appName(app_name)
         .config("spark.jars.packages", SPARK_PACKAGES)
-        .config("spark.hadoop.fs.s3a.endpoint", "http://localhost:9000")
-        .config("spark.hadoop.fs.s3a.access.key", "minioadmin")
-        .config("spark.hadoop.fs.s3a.secret.key", "minioadmin")
+        .config("spark.hadoop.fs.s3a.endpoint", _MINIO_ENDPOINT)
+        .config("spark.hadoop.fs.s3a.access.key", _MINIO_ACCESS_KEY)
+        .config("spark.hadoop.fs.s3a.secret.key", _MINIO_SECRET_KEY)
         .config("spark.hadoop.fs.s3a.path.style.access", "true")
         .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
     )

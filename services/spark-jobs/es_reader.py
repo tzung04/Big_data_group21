@@ -6,11 +6,13 @@ import pyspark.sql.functions as F
 from pyspark.sql import DataFrame
 from pyspark.sql import SparkSession
 
+import os
+
 from spark_session import get_spark_session
 
 
-ES_HOST = "localhost"
-ES_PORT = "9200"
+ES_HOST = os.getenv("ES_HOST", "localhost")
+ES_PORT = os.getenv("ES_PORT", "9200")
 DEFAULT_INDEX = "vn-documents"
 
 

@@ -1,31 +1,19 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
-
-const DEMO_STATS = {
-  total: 1250,
-  by_category: {
-    "thoi-su": 320,
-    "kinh-doanh": 260,
-    "the-thao": 210,
-    "giai-tri": 180,
-    "giao-duc": 160,
-    "cong-nghe": 120
-  }
-};
+import { getStats } from "./api";
 
 export default function Stats() {
   const [stats, setStats] = useState(null);
-  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    axios
-      .get("http://localhost:8000/stats", { timeout: 3000 })
-      .then((r) => setStats(r.data))
-      .catch(() => {
-        setStats(DEMO_STATS);
-        setNotice("FastAPI /stats chưa chạy ở port 8000, đang hiển thị dữ liệu demo.");
-      });
+    getStats()
+      .then((data) => setStats(data))
+      .catch(() => setError("Không thể kết nối API. Kiểm tra dịch vụ FastAPI."));
   }, []);
+
+  if (error) {
+    return <section className="stats-panel"><p className="notice-message">{error}</p></section>;
+  }
 
   if (!stats) {
     return <section className="stats-panel">Đang tải...</section>;
@@ -45,8 +33,6 @@ export default function Stats() {
           <strong>{stats.total.toLocaleString("vi-VN")}</strong>
         </div>
       </div>
-
-      {notice && <div className="notice-message">{notice}</div>}
 
       <div className="stats-grid">
         {rows.map(([cat, count]) => (
