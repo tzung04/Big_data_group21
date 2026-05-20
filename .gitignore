@@ -6,3 +6,4 @@ data/*.parquet
 data/*.json
 .DS_Store
 services/*/logs/
+.pytest_cache/
