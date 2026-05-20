@@ -37,7 +37,7 @@ df_raw = (
     spark.readStream.format("kafka")
     .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
     .option("subscribe", RAW_TOPIC)
-    .option("startingOffsets", "latest")
+    .option("startingOffsets", "earliest")
     .load()
 )
 

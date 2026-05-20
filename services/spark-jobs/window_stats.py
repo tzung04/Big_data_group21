@@ -61,14 +61,15 @@ stats_df = (
     )
 )
 
-# Window function: xếp hạng category theo doc_count trong mỗi time window
-window_spec = Window.partitionBy("window").orderBy(F.desc("doc_count"))
-ranked_df = stats_df.withColumn("rank", F.rank().over(window_spec))
+def _rank_and_show(batch_df, batch_id):
+    if batch_df.rdd.isEmpty():
+        return
+    window_spec = Window.partitionBy("window").orderBy(F.desc("doc_count"))
+    batch_df.withColumn("rank", F.rank().over(window_spec)).show(truncate=False)
 
 query = (
-    ranked_df.writeStream.outputMode("complete")
-    .format("console")
-    .option("truncate", False)
+    stats_df.writeStream.outputMode("complete")
+    .foreachBatch(_rank_and_show)
     .option("checkpointLocation", CHECKPOINT_PATH)
     .start()
 )

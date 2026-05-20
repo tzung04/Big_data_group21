@@ -92,11 +92,22 @@ spec:
       containers:
         - name: mc
           image: minio/mc:latest
+          env:
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_SECRET_KEY
           command:
             - sh
             - -c
             - |
-              until mc alias set local http://minio:9000 minioadmin minioadmin; do
+              until mc alias set local http://minio:9000 $MINIO_ACCESS_KEY $MINIO_SECRET_KEY; do
                 echo "Waiting for MinIO..."; sleep 5
               done
               mc mb --ignore-existing local/raw-data

@@ -13,6 +13,16 @@ spec:
       labels:
         app: spark-streaming
     spec:
+      initContainers:
+        - name: wait-kafka
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z kafka 9092; do echo "waiting for kafka..."; sleep 3; done']
+        - name: wait-elasticsearch
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z elasticsearch 9200; do echo "waiting for elasticsearch..."; sleep 3; done']
+        - name: wait-minio
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z minio 9000; do echo "waiting for minio..."; sleep 3; done']
       containers:
         - name: spark-streaming
           image: vn-text-search/spark-jobs:latest

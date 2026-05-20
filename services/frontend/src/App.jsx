@@ -1,50 +1,11 @@
 import { useState } from "react";
-import axios from "axios";
 import { Activity, BarChart3, ExternalLink, Search } from "lucide-react";
 import Stats from "./Stats";
+import { searchDocuments } from "./api";
 
-const API = "http://localhost:8000";
+const GRAFANA_URL = import.meta.env.VITE_GRAFANA_URL || "http://localhost:3001";
 const CATEGORIES = ["", "thoi-su", "kinh-doanh", "the-thao", "giai-tri", "giao-duc"];
 const PAGE_SIZE = 10;
-
-const DEMO_DOCUMENTS = [
-  {
-    id: "vnexpress_demo_1",
-    title: "Hà Nội triển khai hệ thống tìm kiếm văn bản tiếng Việt",
-    content:
-      "Pipeline Kafka, Spark Structured Streaming và Elasticsearch giúp lập chỉ mục tin tức tiếng Việt theo thời gian gần thực.",
-    category: "cong-nghe",
-    topic_label: "du-lieu-lon",
-    url: "https://vnexpress.net/"
-  },
-  {
-    id: "vnexpress_demo_2",
-    title: "Kinh doanh số tăng trưởng nhờ phân tích dữ liệu lớn",
-    content:
-      "Dashboard Grafana theo dõi tốc độ ingest, độ trễ Spark và tỷ lệ index vào Elasticsearch.",
-    category: "kinh-doanh",
-    topic_label: "kinh-te-so",
-    url: "https://vnexpress.net/kinh-doanh"
-  },
-  {
-    id: "vnexpress_demo_3",
-    title: "Đội tuyển Việt Nam có trận đấu tuyệt vời",
-    content:
-      "Bài viết thể thao được tokenizer tiếng Việt xử lý trước khi đưa vào chỉ mục tìm kiếm full-text.",
-    category: "the-thao",
-    topic_label: "bong-da",
-    url: "https://vnexpress.net/the-thao"
-  },
-  {
-    id: "vnexpress_demo_4",
-    title: "Giao diện demo hỗ trợ highlight kết quả tìm kiếm",
-    content:
-      "Người dùng có thể nhập từ khóa, lọc chuyên mục và chuyển trang trong React Search UI.",
-    category: "giai-tri",
-    topic_label: "demo",
-    url: "https://vnexpress.net/giai-tri"
-  }
-];
 
 function App() {
   const [query, setQuery] = useState("");
@@ -52,7 +13,6 @@ function App() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
   const [view, setView] = useState("search");
@@ -63,27 +23,16 @@ function App() {
 
     setLoading(true);
     setError("");
-    setNotice("");
 
     try {
-      const res = await axios.get(`${API}/search`, {
-        params: {
-          q: query,
-          category: category || undefined,
-          page: newPage,
-          size: PAGE_SIZE
-        },
-        timeout: 3000
-      });
-      setResults(res.data.results || []);
-      setTotal(res.data.total || 0);
+      const data = await searchDocuments({ query, category, page: newPage, size: PAGE_SIZE });
+      setResults(data.results || []);
+      setTotal(data.total || 0);
       setPage(newPage);
     } catch (err) {
-      const demoResults = searchDemoDocuments(query, category, newPage);
-      setResults(demoResults.results);
-      setTotal(demoResults.total);
-      setPage(newPage);
-      setNotice("FastAPI /search chưa chạy ở port 8000, đang hiển thị kết quả demo.");
+      setError("Không thể kết nối API. Kiểm tra dịch vụ FastAPI.");
+      setResults([]);
+      setTotal(0);
     }
 
     setLoading(false);
@@ -109,7 +58,7 @@ function App() {
             <Activity size={18} />
             Stats
           </button>
-          <a className="grafana-link" href="http://localhost:3001" target="_blank" rel="noreferrer">
+          <a className="grafana-link" href={GRAFANA_URL} target="_blank" rel="noreferrer">
             <BarChart3 size={18} />
             Grafana
           </a>
@@ -155,7 +104,6 @@ function App() {
             </div>
 
             {error && <div className="state-message error">{error}</div>}
-            {notice && <div className="notice-message">{notice}</div>}
 
             {!error && results.length === 0 && (
               <div className="state-message">
@@ -205,21 +153,6 @@ function App() {
       )}
     </main>
   );
-}
-
-function searchDemoDocuments(query, category, page) {
-  const normalizedQuery = query.trim().toLocaleLowerCase("vi-VN");
-  const filtered = DEMO_DOCUMENTS.filter((item) => {
-    const matchesCategory = !category || item.category === category;
-    const text = `${item.title} ${item.content} ${item.category} ${item.topic_label}`.toLocaleLowerCase("vi-VN");
-    return matchesCategory && text.includes(normalizedQuery);
-  });
-  const start = (page - 1) * PAGE_SIZE;
-
-  return {
-    total: filtered.length,
-    results: filtered.slice(start, start + PAGE_SIZE)
-  };
 }
 
 function highlightText(text = "", keyword = "") {

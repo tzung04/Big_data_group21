@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-dataset
+  namespace: text-search
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-kafka
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z kafka 9092; do echo "waiting for kafka..."; sleep 3; done']
+      containers:
+        - name: load-dataset
+          image: vn-text-search/crawler:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "load_dataset.py"]
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_SECRET_KEY
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"

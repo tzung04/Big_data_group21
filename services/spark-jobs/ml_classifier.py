@@ -12,7 +12,7 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import ArrayType, DataType, IntegerType, StringType
 
-from es_reader import DEFAULT_INDEX, get_spark, read_from_es
+from es_reader import DEFAULT_INDEX, ES_HOST, ES_PORT, get_spark, read_from_es
 
 
 DEFAULT_MODEL_PATH = "s3a://spark-output/topic-classifier/"
@@ -149,6 +149,18 @@ def main() -> None:
     df_labeled = _build_labeled_output(full_predictions, labels)
     df_labeled.write.mode("overwrite").parquet(args.labeled_output)
     print(f"Saved labeled documents to: {args.labeled_output}")
+
+    # Write topic_label back to Elasticsearch so the frontend shows real labels
+    df_labeled.select("id", "topic_label").write \
+        .format("org.elasticsearch.spark.sql") \
+        .option("es.nodes", ES_HOST) \
+        .option("es.port", ES_PORT) \
+        .option("es.resource", args.index) \
+        .option("es.mapping.id", "id") \
+        .option("es.write.operation", "update") \
+        .mode("append") \
+        .save()
+    print(f"Updated topic_label in Elasticsearch index: {args.index}")
 
 
 if __name__ == "__main__":
