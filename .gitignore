@@ -8,3 +8,6 @@ data/*.json
 .DS_Store
 services/*/logs/
 .pytest_cache/
+/venv
+.claude/
+doc-local
