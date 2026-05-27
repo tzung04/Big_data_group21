@@ -10,4 +10,4 @@ services/*/logs/
 .pytest_cache/
 /venv
 .claude/
-doc-local
+doc-local/
