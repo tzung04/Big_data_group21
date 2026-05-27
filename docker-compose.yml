@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   kafka:
     image: confluentinc/cp-kafka:7.6.0
@@ -11,12 +12,18 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     ports: ['9092:9092']
     mem_limit: 512m
     volumes:
       - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   elasticsearch:
     image: elasticsearch:8.13.0
@@ -26,6 +33,11 @@ services:
       ES_JAVA_OPTS: '-Xms512m -Xmx512m'
     ports: ['9200:9200']
     mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
 
   minio:
     image: minio/minio
@@ -35,6 +47,12 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     ports: ['9000:9000', '9001:9001']
     mem_limit: 256m
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/minio/health/ready"]
+      interval: 20s
+      retries: 5
 
   spark-master:
     image: apache/spark:3.5.1
@@ -46,9 +64,7 @@ services:
       SPARK_MASTER_HOST: spark-master
       SPARK_MASTER_PORT: 7077
       SPARK_MASTER_WEBUI_PORT: 8080
-    ports:
-      - '8080:8080'
-      - '7077:7077'
+    ports: ['8080:8080', '7077:7077']
     mem_limit: 512m
 
   spark-worker:
@@ -60,19 +76,56 @@ services:
     environment:
       SPARK_WORKER_MEMORY: 1g
       SPARK_WORKER_CORES: 2
-    depends_on:
-      - spark-master
+    depends_on: [spark-master]
     mem_limit: 1g
 
   prometheus:
     image: prom/prometheus
     ports: ['9090:9090']
     mem_limit: 256m
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
 
   grafana:
     image: grafana/grafana
     ports: ['3001:3000']
     mem_limit: 256m
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+
+  api:
+    build:
+      context: ./services/api
+    ports: ['8000:8000']
+    mem_limit: 256m
+    environment:
+      ES_HOST: elasticsearch
+      ES_PORT: "9200"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  crawler:
+    build:
+      context: ./services/crawler
+    mem_limit: 256m
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./services/frontend
+    ports: ['3000:80']
+    mem_limit: 128m
+    depends_on: [api]
 
 volumes:
   kafka-data:
+  minio-data:

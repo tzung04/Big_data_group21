@@ -4,27 +4,53 @@ metadata:
   name: init-es
   namespace: text-search
 spec:
+  ttlSecondsAfterFinished: 300
   template:
     spec:
       restartPolicy: OnFailure
       containers:
         - name: init-es
-          image: vn-text-search/crawler:latest
-          imagePullPolicy: IfNotPresent
+          image: python:3.11-slim
           command:
-            - sh
+            - python3
             - -c
             - |
-              until python -c "from elasticsearch import Elasticsearch; es = Elasticsearch(\"http://$ES_HOST:$ES_PORT\"); assert es.ping()" 2>/dev/null; do
-                echo "Waiting for Elasticsearch..."; sleep 5
-              done
-              python init_es.py
-          envFrom:
-            - configMapRef:
-                name: app-config
-          env:
-            - name: MINIO_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: minio-secret
-                  key: MINIO_SECRET_KEY
+              import time, sys, subprocess
+              subprocess.run([sys.executable, '-m', 'pip', 'install',
+                'elasticsearch==8.13.0', '-q'], check=True)
+              from elasticsearch import Elasticsearch
+              es = Elasticsearch('http://elasticsearch:9200')
+              print('Waiting for Elasticsearch...')
+              for i in range(30):
+                  try:
+                      if es.ping():
+                          print('ES ready!')
+                          break
+                  except Exception as e:
+                      print(f'Attempt {i+1}: {e}')
+                  time.sleep(5)
+              m = {
+                  'mappings': {'properties': {
+                      'id':           {'type': 'keyword'},
+                      'title':        {'type': 'text', 'analyzer': 'standard'},
+                      'content':      {'type': 'text', 'analyzer': 'standard'},
+                      'tokens':       {'type': 'keyword'},
+                      'token_count':  {'type': 'integer'},
+                      'category':     {'type': 'keyword'},
+                      'topic_label':  {'type': 'keyword'},
+                      'url':          {'type': 'keyword'},
+                      'published_at': {'type': 'date'},
+                      'indexed_at':   {'type': 'date'}
+                  }},
+                  'settings': {'number_of_shards': 1, 'number_of_replicas': 0}
+              }
+              if not es.indices.exists(index='vn-documents'):
+                  es.indices.create(index='vn-documents',
+                      mappings=m['mappings'], settings=m['settings'])
+                  print('Created index: vn-documents')
+              else:
+                  print('Index already exists')
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "200m"

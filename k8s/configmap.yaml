@@ -9,4 +9,5 @@ data:
   ES_PORT: "9200"
   MINIO_ENDPOINT: "http://minio:9000"
   MINIO_ACCESS_KEY: "minioadmin"
-  SPARK_MASTER: "spark://spark-master:7077"
+  SPARK_MASTER: "local[1]"
+  CHECKPOINT_BASE: "s3a://spark-checkpoints"

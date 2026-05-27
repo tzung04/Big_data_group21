@@ -1,5 +1,44 @@
 ---
-# Chạy mỗi ngày lúc 2:00 AM — pivot số bài theo ngày x category
+# 01:00 AM - sort-merge join + broadcast join enrichment
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: spark-batch-enricher
+  namespace: text-search
+spec:
+  schedule: "0 1 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: spark-batch-enricher
+              image: k3d-myregistry:5000/vn-text-search/spark-jobs:latest
+              imagePullPolicy: IfNotPresent
+              args: ["/opt/spark-jobs/enricher.py"]
+              env:
+                - name: SPARK_JOB
+                  value: "enricher.py"
+                - name: CHECKPOINT_BASE
+                  value: "s3a://spark-checkpoints"
+                - name: MINIO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: MINIO_SECRET_KEY
+              envFrom:
+                - configMapRef:
+                    name: app-config
+              resources:
+                requests:
+                  memory: "1Gi"
+                  cpu: "500m"
+                limits:
+                  memory: "2Gi"
+                  cpu: "1500m"
+---
+# 02:00 AM - pivot + unpivot so bai theo ngay x category
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -14,8 +53,9 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: spark-batch-pivot
-              image: vn-text-search/spark-jobs:latest
+              image: k3d-myregistry:5000/vn-text-search/spark-jobs:latest
               imagePullPolicy: IfNotPresent
+              args: ["/opt/spark-jobs/batch_pivot.py"]
               env:
                 - name: SPARK_JOB
                   value: "batch_pivot.py"
@@ -35,7 +75,7 @@ spec:
                   memory: "2Gi"
                   cpu: "1500m"
 ---
-# Chạy mỗi ngày lúc 3:00 AM — broadcast join + partition pruning
+# 03:00 AM - broadcast join + partition pruning + bucketing
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -50,11 +90,16 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: spark-batch-optimized
-              image: vn-text-search/spark-jobs:latest
+              image: k3d-myregistry:5000/vn-text-search/spark-jobs:latest
               imagePullPolicy: IfNotPresent
+              args: ["/opt/spark-jobs/batch_optimized.py"]
               env:
                 - name: SPARK_JOB
                   value: "batch_optimized.py"
+                - name: SOURCE_PATH
+                  value: "s3a://spark-output/enriched-documents/"
+                - name: OUTPUT_PATH
+                  value: "s3a://spark-output/optimized/"
                 - name: MINIO_SECRET_KEY
                   valueFrom:
                     secretKeyRef:
@@ -71,7 +116,7 @@ spec:
                   memory: "2Gi"
                   cpu: "1500m"
 ---
-# Chạy mỗi ngày lúc 4:00 AM — NaiveBayes ML classifier
+# 04:00 AM - NaiveBayes ML classifier
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -86,8 +131,9 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: spark-ml-classifier
-              image: vn-text-search/spark-jobs:latest
+              image: k3d-myregistry:5000/vn-text-search/spark-jobs:latest
               imagePullPolicy: IfNotPresent
+              args: ["/opt/spark-jobs/ml_classifier.py"]
               env:
                 - name: SPARK_JOB
                   value: "ml_classifier.py"
@@ -106,3 +152,77 @@ spec:
                 limits:
                   memory: "2Gi"
                   cpu: "1500m"
+---
+# 05:00 AM - time series + anomaly detection
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: spark-time-series
+  namespace: text-search
+spec:
+  schedule: "0 5 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: spark-time-series
+              image: k3d-myregistry:5000/vn-text-search/spark-jobs:latest
+              imagePullPolicy: IfNotPresent
+              args: ["/opt/spark-jobs/time_series.py"]
+              env:
+                - name: SPARK_JOB
+                  value: "time_series.py"
+                - name: MINIO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: MINIO_SECRET_KEY
+              envFrom:
+                - configMapRef:
+                    name: app-config
+              resources:
+                requests:
+                  memory: "1Gi"
+                  cpu: "500m"
+                limits:
+                  memory: "2Gi"
+                  cpu: "1500m"
+---
+# Sunday 06:00 AM - GraphFrames analysis (nang, chay hang tuan)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: spark-graph-analysis
+  namespace: text-search
+spec:
+  schedule: "0 6 * * 0"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: spark-graph-analysis
+              image: k3d-myregistry:5000/vn-text-search/spark-jobs:latest
+              imagePullPolicy: IfNotPresent
+              args: ["/opt/spark-jobs/graph_analysis.py"]
+              env:
+                - name: SPARK_JOB
+                  value: "graph_analysis.py"
+                - name: MINIO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: MINIO_SECRET_KEY
+              envFrom:
+                - configMapRef:
+                    name: app-config
+              resources:
+                requests:
+                  memory: "1.5Gi"
+                  cpu: "1000m"
+                limits:
+                  memory: "3Gi"
+                  cpu: "2000m"

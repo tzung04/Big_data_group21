@@ -33,15 +33,9 @@ spec:
             - containerPort: 9001
           env:
             - name: MINIO_ROOT_USER
-              valueFrom:
-                configMapKeyRef:
-                  name: app-config
-                  key: MINIO_ACCESS_KEY
+              value: "minioadmin"
             - name: MINIO_ROOT_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: minio-secret
-                  key: MINIO_SECRET_KEY
+              value: "minioadmin"
           resources:
             requests:
               memory: "256Mi"
@@ -78,39 +72,3 @@ spec:
     - name: console
       port: 9001
       targetPort: 9001
----
-# Tạo buckets cần thiết khi MinIO khởi động xong
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: minio-init
-  namespace: text-search
-spec:
-  template:
-    spec:
-      restartPolicy: OnFailure
-      containers:
-        - name: mc
-          image: minio/mc:latest
-          env:
-            - name: MINIO_ACCESS_KEY
-              valueFrom:
-                configMapKeyRef:
-                  name: app-config
-                  key: MINIO_ACCESS_KEY
-            - name: MINIO_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: minio-secret
-                  key: MINIO_SECRET_KEY
-          command:
-            - sh
-            - -c
-            - |
-              until mc alias set local http://minio:9000 $MINIO_ACCESS_KEY $MINIO_SECRET_KEY; do
-                echo "Waiting for MinIO..."; sleep 5
-              done
-              mc mb --ignore-existing local/raw-data
-              mc mb --ignore-existing local/spark-checkpoints
-              mc mb --ignore-existing local/spark-output
-              echo "Buckets created."
