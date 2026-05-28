@@ -4,11 +4,11 @@
 
 | STT | Thành viên | MSSV | Vai trò |
 |-----|-----------|------|---------|
-| 1 | Bùi Anh Đức | 20225285 | DevOps / K8s |
-| 2 | Vũ Viết Dũng | 20220023 | Spark Streaming |
-| 3 | Lê Hồng Sơn | 20225389 | Spark ML |
-| 4 | Ngô Hồng Phúc | 20225376 | Crawler / API |
-| 5 | Phan Trí Dũng | 20225295 | Frontend / Monitoring |
+| 1 | Bùi Anh Đức | 20225285 | Spark Streaming |
+| 2 | Vũ Viết Dũng | 20220023 | Spark ML |
+| 3 | Lê Hồng Sơn | 20225389 | Crawler / API |
+| 4 | Ngô Hồng Phúc | 20225376 | Frontend / Monitoring  |
+| 5 | Phan Trí Dũng | 20225295 | DevOps / K8s|
 
 ---
 
