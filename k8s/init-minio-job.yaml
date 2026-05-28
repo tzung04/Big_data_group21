@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-minio
+  namespace: text-search
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-minio
+          image: busybox:1.35
+          command: ["sh", "-c", "until nc -z minio 9000; do echo waiting minio; sleep 3; done"]
+      containers:
+        - name: init-minio
+          image: python:3.11-slim
+          command:
+            - python3
+            - -c
+            - |
+              import subprocess, sys, time
+
+              subprocess.run([sys.executable, "-m", "pip", "install",
+                "boto3==1.34.0", "-q"], check=True)
+
+              import boto3
+              from botocore.client import Config
+
+              s3 = boto3.client(
+                  "s3",
+                  endpoint_url="http://minio:9000",
+                  aws_access_key_id="minioadmin",
+                  aws_secret_access_key="minioadmin",
+                  config=Config(signature_version="s3v4"),
+                  region_name="us-east-1",
+              )
+
+              for bucket in ["spark-checkpoints", "spark-output"]:
+                  try:
+                      s3.create_bucket(Bucket=bucket)
+                      print(f"Created bucket: {bucket}")
+                  except s3.exceptions.BucketAlreadyOwnedByYou:
+                      print(f"Bucket already exists: {bucket}")
+                  except Exception as e:
+                      if "BucketAlreadyExists" in str(e) or "BucketAlreadyOwnedByYou" in str(e):
+                          print(f"Bucket already exists: {bucket}")
+                      else:
+                          raise
+
+              print("MinIO buckets ready: spark-checkpoints, spark-output")
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "200m"

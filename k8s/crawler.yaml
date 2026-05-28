@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crawler
+  namespace: text-search
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crawler
+  template:
+    metadata:
+      labels:
+        app: crawler
+    spec:
+      containers:
+        - name: crawler
+          image: vn-text-search/crawler:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "vnexpress_crawler.py"]
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_SECRET_KEY
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "125m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"

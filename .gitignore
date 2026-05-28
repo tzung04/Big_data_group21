@@ -1,8 +1,13 @@
-venv/
-.env
+.venv/
+.pytest_cache/
 __pycache__/
 *.pyc
+.env
 data/*.parquet
 data/*.json
 .DS_Store
 services/*/logs/
+.pytest_cache/
+/venv
+.claude/
+doc-local/

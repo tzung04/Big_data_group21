@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-streaming
+  namespace: text-search
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-streaming
+  template:
+    metadata:
+      labels:
+        app: spark-streaming
+    spec:
+      # FIX DNS: dùng ClusterFirst với ndots thấp để tránh timeout khi resolve
+      # external hostname (vnexpress.net) qua CoreDNS
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"       # default là 5, gây 5 lần lookup thất bại trước khi fallback
+      initContainers:
+        - name: wait-kafka
+          image: busybox:1.35
+          command: ["sh", "-c", "until nc -z kafka 9092; do echo waiting kafka; sleep 5; done"]
+        - name: wait-elasticsearch
+          image: busybox:1.35
+          command: ["sh", "-c", "until nc -z elasticsearch 9200; do echo waiting es; sleep 5; done"]
+        # FIX BlockManager null: chờ pod IP ổn định trước khi Spark khởi động
+        - name: wait-network
+          image: busybox:1.35
+          command: ["sh", "-c", "sleep 3 && echo 'Network stabilized'"]
+      containers:
+        - name: spark-streaming
+          image: k3d-myregistry:5000/vn-text-search/spark-jobs:latest
+          imagePullPolicy: Always
+          args: ["/opt/spark-jobs/streaming_indexer.py"]
+          env:
+            # FIX #1: SPARK_LOCAL_IP + SPARK_LOCAL_HOSTNAME phải khớp nhau
+            # Dùng status.podIP cho cả hai để Spark bind đúng interface ngay từ đầu.
+            # Thiếu SPARK_LOCAL_HOSTNAME → BlockManager advertise hostname "null"
+            # → CoarseGrainedScheduler không tìm được endpoint → heartbeat loop crash
+            - name: SPARK_LOCAL_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: SPARK_LOCAL_HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP   # FIX: thêm mới, dùng IP thay hostname
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+            - name: ES_HOST
+              value: "elasticsearch"
+            - name: ES_PORT
+              value: "9200"
+            - name: MINIO_ENDPOINT
+              value: "http://minio:9000"
+            - name: MINIO_ACCESS_KEY
+              value: "minioadmin"
+            - name: MINIO_SECRET_KEY
+              value: "minioadmin"
+            - name: CHECKPOINT_BASE
+              value: "s3a://spark-checkpoints"
+            - name: SPARK_MASTER
+              value: "local[2]"         # tăng lên 2 cores: 1 cho receiver, 1 cho processing
+            - name: SPARK_EXECUTOR_MEMORY
+              value: "512m"
+            - name: SPARK_DRIVER_MEMORY
+              value: "512m"
+            - name: SPARK_EXECUTOR_CORES
+              value: "1"
+            # FIX #2: tắt dynamic allocation — không cần thiết cho local mode,
+            # bật lên sẽ gây thêm endpoint lookup thất bại
+            - name: SPARK_CONF_spark_dynamicAllocation_enabled
+              value: "false"
+            # FIX #3: tăng timeout RPC để tránh heartbeat timeout khi pod mới khởi động
+            - name: SPARK_CONF_spark_rpc_askTimeout
+              value: "120s"
+            - name: SPARK_CONF_spark_network_timeout
+              value: "120s"
+          resources:
+            requests:
+              memory: "900Mi"
+              cpu: "500m"
+            limits:
+              memory: "1400Mi"
+              cpu: "1000m"
+          # FIX #4: readiness probe để k8s không route traffic trước khi Spark sẵn sàng
+          readinessProbe:
+            tcpSocket:
+              port: 4040       # Spark UI port — chỉ mở sau khi SparkContext init xong
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
